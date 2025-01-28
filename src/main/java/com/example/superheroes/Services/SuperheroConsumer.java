@@ -1,65 +1,41 @@
 package com.example.superheroes.Services;
 
-import com.example.superheroes.Config.SqsConfig;
 import com.example.superheroes.Model.Superhero;
 import com.example.superheroes.Repository.SuperheroRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.services.sqs.SqsClient;
-import software.amazon.awssdk.services.sqs.model.DeleteMessageRequest;
-import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
-import software.amazon.awssdk.services.sqs.model.ReceiveMessageResponse;
-import software.amazon.awssdk.services.sqs.model.Message;
-
-import java.util.ArrayList;
-import java.util.List;
+import io.awspring.cloud.sqs.annotation.SqsListener;
 
 @Service
+@RequiredArgsConstructor
 public class SuperheroConsumer {
 
-    @Autowired
-    private SqsConfig sqsConfig;
-    @Autowired
-    private SqsClient sqsClient;
-    @Autowired
-    private SuperheroService superheroService;
-    @Autowired
-    private SuperheroRepository superheroRepository;
+    private final SuperheroService superheroService;
+    private final SuperheroRepository superheroRepository;
+
+    @SqsListener("localstack-queue")
+    public void receiveMessage(String superheroJson) {
+        try {
+            // Deserialize the superhero JSON to an object
+            ObjectMapper objectMapper = new ObjectMapper();
+            Superhero updatedSuperhero = objectMapper.readValue(superheroJson, Superhero.class);
 
 
-    public List<String> consumeAndProcessUpdates() {
-        List<String> messageBodies = new ArrayList<>();
-
-        ReceiveMessageResponse receivedMessageResponse = sqsClient.receiveMessage(ReceiveMessageRequest
-                .builder()
-                .queueUrl(sqsConfig.getQueueUrl())
-                .maxNumberOfMessages(10)
-                .build());
-
-        List<Message> messages = receivedMessageResponse.messages();
-        for (Message message : messages) {
-            String superHeroName = message.body();
-            messageBodies.add(superHeroName);
+            Superhero existingSuperhero = superheroRepository.findByName(updatedSuperhero.getName())
+                    .orElseThrow(() -> new RuntimeException("Superhero not found with name: " + updatedSuperhero.getName()));
 
 
-                Superhero existingSuperhero = superheroRepository.findByName(superHeroName)
-                        .orElseThrow(() ->
-                                new RuntimeException("Superhero not found with name: " + superHeroName));
+            System.out.println("Old Superhero details: " + existingSuperhero);
 
 
-                Superhero updatedSuperhero = superheroService.updateSuperhero(superHeroName, existingSuperhero);
-
-                System.out.println("Superhero updated successfully: " + updatedSuperhero);
+            Superhero finalUpdatedSuperhero = superheroService.updateSuperhero(updatedSuperhero.getName(), updatedSuperhero);
 
 
-                sqsClient.deleteMessage(DeleteMessageRequest.builder()
-                        .queueUrl(sqsConfig.getQueueUrl())
-                        .receiptHandle(message.receiptHandle())
-                        .build());
-                System.out.println("Message processed and deleted successfully for: " + superHeroName);
+            System.out.println("Updated Superhero details: " + finalUpdatedSuperhero);
+
+        } catch (Exception e) {
+            System.err.println("Error processing message for: " + superheroJson + " | Error: " + e.getMessage());
         }
-
-        return messageBodies;
     }
-
 }

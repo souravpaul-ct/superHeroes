@@ -2,10 +2,10 @@ package com.example.superheroes.Controllers;
 
 import com.example.superheroes.Config.SqsConfig;
 import com.example.superheroes.Model.Superhero;
-import com.example.superheroes.Services.SuperheroConsumer;
 import com.example.superheroes.Services.SuperheroService;
+import com.example.superheroes.Services.SuperheroConsumer;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,93 +22,74 @@ import java.util.List;
 public class SuperheroController {
 
     private final SuperheroService superheroService;
+    private final SuperheroConsumer superheroConsumer;
+    private final SqsClient sqsClient;
+    private final SqsConfig sqsConfig;
 
-    @Autowired
-    private SqsConfig sqsConfig;
-
-    @Autowired
-    private SqsClient sqsClient;
-
-    @Autowired
-    private SuperheroConsumer superheroConsumer;
-
-
-    @Autowired
-    public SuperheroController(SuperheroService superheroService, SqsClient sqsClient, SuperheroConsumer superheroConsumer) {
-        this.superheroService = superheroService;
-        this.sqsClient = sqsClient;
-        this.superheroConsumer = superheroConsumer;
-    }
-
-
+    // POST method to add a single superhero
     @PostMapping
     public Superhero addSuperhero(@RequestBody Superhero superhero) {
         return superheroService.addSuperhero(superhero);
     }
 
+    // POST method to add multiple superheroes
     @PostMapping("/many")
     public List<Superhero> addManySuperheroes(@RequestBody List<Superhero> superheroes) {
         return superheroService.addManySuperheroes(superheroes);
     }
 
+    // PUT method to update a superhero
     @PutMapping("/{name}")
     public Superhero updateSuperhero(@PathVariable String name, @RequestBody Superhero superhero) {
         return superheroService.updateSuperhero(name, superhero);
     }
 
+    // PATCH method for partial update of a superhero
     @PatchMapping("/{name}")
     public ResponseEntity<Superhero> patchSuperhero(@PathVariable String name, @RequestBody Superhero superhero) {
         try {
-            // Call the service to patch the superhero
             Superhero updatedSuperhero = superheroService.patchSuperhero(name, superhero);
-            return ResponseEntity.status(HttpStatus.OK).body(updatedSuperhero);  // Return updated superhero with status 200
+            return ResponseEntity.status(HttpStatus.OK).body(updatedSuperhero);
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);  // Return 404 if superhero not found
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
         }
     }
 
-
+    // DELETE method to delete a superhero by name
     @DeleteMapping("/{name}")
     public void deleteSuperhero(@PathVariable String name) {
         superheroService.deleteSuperhero(name);
     }
 
+    // Basic hello endpoint for testing
     @GetMapping("/hello")
     public String getHello(@RequestParam(value = "username", defaultValue = "World") String username) {
         SendMessageResponse res = sqsClient.sendMessage(SendMessageRequest.builder()
                 .queueUrl(sqsConfig.getQueueUrl())
                 .messageBody("Sourav Paul").build());
-
         return String.format("Hello %s! %s", username, res.messageId());
     }
 
-
-    // asyncronously updates with a name by sending it to the SOS queue
+    // Asynchronously updates superhero by sending its name to the SQS queue
     @PutMapping("/update_superhero_async")
     public ResponseEntity<String> asyncUpdateSuperhero(@RequestBody Superhero superhero) {
-        String superHeroName = superhero.getName();
+        try {
+            // Send superhero object to SQS for asynchronous processing
+            ObjectMapper objectMapper = new ObjectMapper();
+            SendMessageResponse response = sqsClient.sendMessage(SendMessageRequest.builder()
+                    .queueUrl(sqsConfig.getQueueUrl())
+                    .messageBody(objectMapper.writeValueAsString(superhero)) // Serialize the superhero object
+                    .build());
 
-        SendMessageResponse response = sqsClient.sendMessage(SendMessageRequest.builder()
-                .queueUrl(sqsConfig.getQueueUrl())
-                .messageBody(superHeroName)
-                .build());
-
-        return ResponseEntity.accepted().body("Request to update " +
-                superHeroName + " has been queued. Message ID: " + response.messageId());
-
+            return ResponseEntity.accepted().body("Request to update " +
+                    superhero.getName() + " has been queued. Message ID: " + response.messageId());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error sending message to SQS");
+        }
     }
 
 
-    // it consumes a message from the SOS queue using the superhero Consumer
-    @GetMapping("/get_message_from_queue")
-    public ResponseEntity<List<String>> getMessage() {
-       List<String> messages =  superheroConsumer.consumeAndProcessUpdates();
-        return ResponseEntity.ok(messages);
-
-    }
-
-
-
+    // GET method to fetch a superhero by name
     @GetMapping("/name/{name}")
     public ResponseEntity<Superhero> getSuperheroByName(@PathVariable String name) {
         try {
@@ -119,6 +100,7 @@ public class SuperheroController {
         }
     }
 
+    // GET method to fetch superheroes by universe
     @GetMapping("/universe/{universe}")
     public List<Superhero> getSuperheroesByUniverse(@PathVariable String universe) {
         return superheroService.getSuperheroesByUniverse(universe);

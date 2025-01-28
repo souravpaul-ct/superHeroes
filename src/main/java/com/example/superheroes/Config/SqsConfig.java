@@ -1,12 +1,13 @@
 package com.example.superheroes.Config;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
-
+@Getter
+@Setter
 @Configuration
-@Data
 public class SqsConfig {
 
     @Value("${sqs.queue.name}")
@@ -15,15 +16,15 @@ public class SqsConfig {
     @Value("${sqs.queue.url}")
     private String queueUrl;
 
-    @Value("${sqs.queue.region}")
+    @Value("${spring.cloud.aws.sqs.region}")
     private String region;
 
-    @Value("${sqs.queue.access-key}")
+    @Value("${spring.cloud.aws.sqs.endpoint}")
+    private String endpoint;
+
+    @Value("${spring.cloud.aws.credentials.access-key}")
     private String accessKey;
 
-    @Value("${sqs.queue.secret-key}")
+    @Value("${spring.cloud.aws.credentials.secret-key}")
     private String secretKey;
-
-    @Value("${sqs.queue.session-token}")
-    private String sessionToken;
 }

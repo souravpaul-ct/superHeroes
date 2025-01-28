@@ -6,7 +6,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -37,8 +36,25 @@ public class SuperheroService {
     public Superhero updateSuperhero(String name, Superhero superhero) {
         return superheroRepository.findByName(name)
                 .map(existingSuperhero -> {
-                    superhero.setName(name);
-                    return superheroRepository.save(superhero);
+                    // Update only fields that are not null or modified
+                    if (superhero.getPower() != null) {
+                        existingSuperhero.setPower(superhero.getPower());
+                    }
+                    if (superhero.getAge() > 0) {  // Ensure valid age
+                        existingSuperhero.setAge(superhero.getAge());
+                    }
+                    if (superhero.getGender() != null) {
+                        existingSuperhero.setGender(superhero.getGender());
+                    }
+                    if (superhero.getUniverse() != null) {
+                        existingSuperhero.setUniverse(superhero.getUniverse());
+                    }
+                    if (superhero.getArchEnemies() != null && !superhero.getArchEnemies().isEmpty()) {
+                        existingSuperhero.setArchEnemies(superhero.getArchEnemies());
+                    }
+
+                    // Save and return the updated superhero
+                    return superheroRepository.save(existingSuperhero);
                 })
                 .orElseThrow(() -> new RuntimeException("Superhero not found with name: " + name));
     }
@@ -46,7 +62,6 @@ public class SuperheroService {
     public void deleteSuperhero(String name) {
         superheroRepository.deleteById(name);
     }
-
 
     public Superhero patchSuperhero(String name, Superhero superhero) {
         Superhero existingSuperhero = superheroRepository.findByName(name)
@@ -72,5 +87,4 @@ public class SuperheroService {
         // Save and return the updated superhero
         return superheroRepository.save(existingSuperhero);
     }
-
 }
