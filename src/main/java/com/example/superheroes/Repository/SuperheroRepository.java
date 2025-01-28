@@ -5,11 +5,12 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 
 @Repository
 
 public interface SuperheroRepository extends MongoRepository<Superhero, String> {
-    Superhero findByName(String name);
+    Optional<Superhero> findByName(String name);
     List<Superhero> findByUniverse(String universe);
 }
